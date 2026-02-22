@@ -5,6 +5,7 @@ import nltk
 import time
 import pandas as pd
 import numpy as np
+import os
 from nltk.corpus import stopwords
 
 # -------------------- PAGE CONFIG --------------------
@@ -14,9 +15,14 @@ st.set_page_config(
     layout="centered"
 )
 
-# -------------------- LOAD MODEL --------------------
-model = pickle.load(open("model.pkl", "rb"))
-vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
+# -------------------- SAFE MODEL PATH --------------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+model_path = os.path.join(BASE_DIR, "model.pkl")
+vectorizer_path = os.path.join(BASE_DIR, "vectorizer.pkl")
+
+model = pickle.load(open(model_path, "rb"))
+vectorizer = pickle.load(open(vectorizer_path, "rb"))
 
 # -------------------- STOPWORDS --------------------
 try:
@@ -83,14 +89,12 @@ def clean_text(text):
     words = [w for w in words if w not in stop_words]
     return " ".join(words)
 
-# -------------------- AI EXPLANATION FUNCTION --------------------
+# -------------------- AI EXPLANATION --------------------
 def get_top_features(vectorized_text, model, vectorizer, top_n=5):
     feature_names = np.array(vectorizer.get_feature_names_out())
-
     if hasattr(model, "coef_"):
         coefs = model.coef_[0]
         sorted_idx = np.argsort(coefs)
-
         prediction = model.predict(vectorized_text)[0]
 
         if prediction == 0:
@@ -99,8 +103,7 @@ def get_top_features(vectorized_text, model, vectorizer, top_n=5):
             top_features = feature_names[sorted_idx[-top_n:]]
 
         return top_features
-    else:
-        return []
+    return []
 
 # -------------------- SESSION HISTORY --------------------
 if "history" not in st.session_state:
@@ -117,17 +120,14 @@ if st.button("Analyze News"):
     if user_input.strip() != "":
         with st.spinner("Analyzing..."):
             time.sleep(1)
-
             cleaned = clean_text(user_input)
             vectorized = vectorizer.transform([cleaned])
-
             prediction = model.predict(vectorized)[0]
             probability = model.predict_proba(vectorized)[0]
             confidence = max(probability) * 100
 
         label = "Real News" if prediction == 0 else "Fake News"
 
-        # Save history
         st.session_state.history.append({
             "Text": user_input[:50] + "...",
             "Prediction": label,
@@ -136,7 +136,6 @@ if st.button("Analyze News"):
 
         st.markdown("---")
 
-        # -------------------- RESULT --------------------
         if prediction == 0:
             st.markdown(
                 f"<div class='result' style='color:green;'>✅ {label}<br>Confidence: {confidence:.2f}%</div>",
@@ -150,19 +149,16 @@ if st.button("Analyze News"):
 
         st.progress(int(confidence))
 
-        # -------------------- PROBABILITY CHART --------------------
         chart_data = pd.DataFrame({
             "Label": ["Real", "Fake"],
             "Probability": probability
         })
         st.bar_chart(chart_data.set_index("Label"))
 
-        # -------------------- AI EXPLANATION --------------------
         st.markdown("### 🤖 Why this prediction?")
         top_words = get_top_features(vectorized, model, vectorizer)
 
         if len(top_words) > 0:
-            st.write("Top Influential Words:")
             for word in top_words:
                 st.write(f"• {word}")
         else:
@@ -173,10 +169,8 @@ if st.button("Analyze News"):
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# -------------------- HISTORY --------------------
 if st.session_state.history:
     st.markdown("### 📜 Prediction History")
     st.dataframe(pd.DataFrame(st.session_state.history))
 
-# -------------------- FOOTER --------------------
 st.markdown("<div class='footer'>Developed with Machine Learning & Streamlit</div>", unsafe_allow_html=True)
