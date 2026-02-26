@@ -5,7 +5,6 @@ import nltk
 import time
 import pandas as pd
 import numpy as np
-import os
 from nltk.corpus import stopwords
 
 # -------------------- PAGE CONFIG --------------------
@@ -15,14 +14,9 @@ st.set_page_config(
     layout="centered"
 )
 
-# -------------------- SAFE MODEL PATH --------------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-model_path = os.path.join(BASE_DIR, "model.pkl")
-vectorizer_path = os.path.join(BASE_DIR, "vectorizer.pkl")
-
-model = pickle.load(open(model_path, "rb"))
-vectorizer = pickle.load(open(vectorizer_path, "rb"))
+# -------------------- LOAD MODEL --------------------
+model = pickle.load(open("model.pkl", "rb"))
+vectorizer = pickle.load(open("vectorizer.pkl", "rb"))
 
 # -------------------- STOPWORDS --------------------
 try:
@@ -46,9 +40,6 @@ else:
 # -------------------- CUSTOM CSS --------------------
 st.markdown(f"""
 <style>
-body {{
-    background-color: {bg_color};
-}}
 .card {{
     background-color: {card_color};
     padding: 40px;
@@ -89,9 +80,10 @@ def clean_text(text):
     words = [w for w in words if w not in stop_words]
     return " ".join(words)
 
-# -------------------- AI EXPLANATION --------------------
+# -------------------- EXPLANATION FUNCTION --------------------
 def get_top_features(vectorized_text, model, vectorizer, top_n=5):
     feature_names = np.array(vectorizer.get_feature_names_out())
+
     if hasattr(model, "coef_"):
         coefs = model.coef_[0]
         sorted_idx = np.argsort(coefs)
@@ -103,13 +95,14 @@ def get_top_features(vectorized_text, model, vectorizer, top_n=5):
             top_features = feature_names[sorted_idx[-top_n:]]
 
         return top_features
-    return []
+    else:
+        return []
 
 # -------------------- SESSION HISTORY --------------------
 if "history" not in st.session_state:
     st.session_state.history = []
 
-# -------------------- UI CARD --------------------
+# -------------------- UI --------------------
 st.markdown("<div class='card'>", unsafe_allow_html=True)
 st.markdown("<div class='title'>📰 Fake News Detector Pro</div>", unsafe_allow_html=True)
 st.markdown("<div class='subtitle'>AI Powered News Classification System</div>", unsafe_allow_html=True)
@@ -117,17 +110,33 @@ st.markdown("<div class='subtitle'>AI Powered News Classification System</div>",
 user_input = st.text_area("Enter News Text Below:", height=180)
 
 if st.button("Analyze News"):
-    if user_input.strip() != "":
+
+    if user_input.strip() == "":
+        st.warning("⚠ Please enter some text.")
+    else:
         with st.spinner("Analyzing..."):
             time.sleep(1)
+
             cleaned = clean_text(user_input)
             vectorized = vectorizer.transform([cleaned])
-            prediction = model.predict(vectorized)[0]
+
             probability = model.predict_proba(vectorized)[0]
-            confidence = max(probability) * 100
 
-        label = "Real News" if prediction == 0 else "Fake News"
+            fake_prob = probability[0]
+            real_prob = probability[1]
 
+            # Confidence threshold logic
+            if real_prob > 0.65:
+                label = "Real News"
+                confidence = real_prob * 100
+            elif fake_prob > 0.65:
+                label = "Fake News"
+                confidence = fake_prob * 100
+            else:
+                label = "Uncertain"
+                confidence = max(real_prob, fake_prob) * 100
+
+        # Save history
         st.session_state.history.append({
             "Text": user_input[:50] + "...",
             "Prediction": label,
@@ -136,41 +145,49 @@ if st.button("Analyze News"):
 
         st.markdown("---")
 
-        if prediction == 0:
+        # RESULT
+        if label == "Real News":
             st.markdown(
                 f"<div class='result' style='color:green;'>✅ {label}<br>Confidence: {confidence:.2f}%</div>",
                 unsafe_allow_html=True
             )
-        else:
+        elif label == "Fake News":
             st.markdown(
                 f"<div class='result' style='color:red;'>❌ {label}<br>Confidence: {confidence:.2f}%</div>",
+                unsafe_allow_html=True
+            )
+        else:
+            st.markdown(
+                f"<div class='result' style='color:orange;'>⚠ {label}<br>Confidence: {confidence:.2f}%</div>",
                 unsafe_allow_html=True
             )
 
         st.progress(int(confidence))
 
+        # Probability Chart
         chart_data = pd.DataFrame({
-            "Label": ["Real", "Fake"],
-            "Probability": probability
+            "Label": ["Fake", "Real"],
+            "Probability": [fake_prob, real_prob]
         })
         st.bar_chart(chart_data.set_index("Label"))
 
+        # Explanation
         st.markdown("### 🤖 Why this prediction?")
         top_words = get_top_features(vectorized, model, vectorizer)
 
         if len(top_words) > 0:
+            st.write("Top Influential Words:")
             for word in top_words:
                 st.write(f"• {word}")
         else:
             st.write("Explanation not available for this model type.")
 
-    else:
-        st.warning("⚠ Please enter some text.")
-
 st.markdown("</div>", unsafe_allow_html=True)
 
+# -------------------- HISTORY DISPLAY --------------------
 if st.session_state.history:
     st.markdown("### 📜 Prediction History")
     st.dataframe(pd.DataFrame(st.session_state.history))
 
+# -------------------- FOOTER --------------------
 st.markdown("<div class='footer'>Developed with Machine Learning & Streamlit</div>", unsafe_allow_html=True)
