@@ -22,8 +22,7 @@ def clean_text(text):
     return " ".join(words)
 
 # ---------------- LOAD DATA ----------------
-fake = pd.read_csv("Fake.csv")
-real = pd.read_csv("True.csv")
+
 
 fake["label"] = 1
 real["label"] = 0
