@@ -1,17 +1,29 @@
-import pandas as pd
-import numpy as np
+import streamlit as st
+import pickle
 import string
 import nltk
-import pickle
-
+import pandas as pd
+import numpy as np
+import os
 from nltk.corpus import stopwords
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, classification_report
 
-nltk.download('stopwords')
-stop_words = set(stopwords.words('english'))
+st.set_page_config(page_title="Fake News Detector", page_icon="📰")
+
+# ---------------- LOAD MODEL ----------------
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+model_path = os.path.join(BASE_DIR, "model.pkl")
+vectorizer_path = os.path.join(BASE_DIR, "vectorizer.pkl")
+
+model = pickle.load(open(model_path, "rb"))
+vectorizer = pickle.load(open(vectorizer_path, "rb"))
+
+# ---------------- STOPWORDS ----------------
+try:
+    stop_words = set(stopwords.words('english'))
+except:
+    nltk.download('stopwords')
+    stop_words = set(stopwords.words('english'))
 
 # ---------------- CLEAN FUNCTION ----------------
 def clean_text(text):
@@ -21,43 +33,27 @@ def clean_text(text):
     words = [w for w in words if w not in stop_words]
     return " ".join(words)
 
-# ---------------- LOAD DATA ----------------
+# ---------------- UI ----------------
+st.title("📰 Fake News Detector")
+user_input = st.text_area("Enter News Text")
 
+if st.button("Analyze"):
 
-fake["label"] = 1
-real["label"] = 0
+    if user_input.strip() == "":
+        st.warning("Please enter some text.")
+    else:
+        cleaned = clean_text(user_input)
+        vectorized = vectorizer.transform([cleaned])
 
-data = pd.concat([fake, real])
-data = data.sample(frac=1).reset_index(drop=True)
+        probability = model.predict_proba(vectorized)[0]
+        real_prob = probability[0]
+        fake_prob = probability[1]
 
-data["text"] = data["text"].apply(clean_text)
+        if real_prob > fake_prob:
+            st.success("Real News ✅")
+            confidence = real_prob * 100
+        else:
+            st.error("Fake News ❌")
+            confidence = fake_prob * 100
 
-X = data["text"]
-y = data["label"]
-
-# ---------------- TF-IDF (UPGRADED) ----------------
-vectorizer = TfidfVectorizer(
-    max_features=5000,
-    ngram_range=(1,2)
-)
-
-X_vectorized = vectorizer.fit_transform(X)
-
-# ---------------- SPLIT ----------------
-X_train, X_test, y_train, y_test = train_test_split(
-    X_vectorized, y, test_size=0.2, random_state=42
-)
-
-# ---------------- MODEL ----------------
-model = LogisticRegression(max_iter=2000)
-model.fit(X_train, y_train)
-
-# ---------------- EVALUATE ----------------
-y_pred = model.predict(X_test)
-
-print("Accuracy:", accuracy_score(y_test, y_pred))
-print(classification_report(y_test, y_pred))
-
-# ---------------- SAVE ----------------
-pickle.dump(model, open("model.pkl", "wb"))
-pickle.dump(vectorizer, open("vectorizer.pkl", "wb"))
+        st.write(f"Confidence: {confidence:.2f}%")
