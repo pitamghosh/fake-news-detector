@@ -63,13 +63,4 @@ if st.button("Analyze"):
 
         st.write(f"Confidence: {confidence:.2f}%")
 
-        # ---------------- JSON OUTPUT ----------------
-        result_json = {
-            "input_text": user_input,
-            "ml_prediction": final_verdict,
-            "ml_confidence": round(confidence, 2),
-            "final_verdict": final_verdict
-        }
-
-        st.subheader("🔎 JSON Output")
-        st.json(result_json)
+       
