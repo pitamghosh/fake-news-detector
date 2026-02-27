@@ -57,3 +57,15 @@ if st.button("Analyze"):
             confidence = fake_prob * 100
 
         st.write(f"Confidence: {confidence:.2f}%")
+import requests
+
+API_KEY = "f9bbd80009bf4865820294dfe307046b"
+
+def web_verification(query):
+    url = f"https://newsapi.org/v2/everything?q={query}&apiKey={API_KEY}"
+    response = requests.get(url).json()
+    
+    if response["status"] == "ok":
+        return response["totalResults"]
+    else:
+        return 0
