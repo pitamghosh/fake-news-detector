@@ -5,7 +5,6 @@ import nltk
 import pandas as pd
 import numpy as np
 import os
-import json
 from nltk.corpus import stopwords
 
 st.set_page_config(page_title="Fake News Detector", page_icon="📰")
